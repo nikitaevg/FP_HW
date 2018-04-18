@@ -8,7 +8,7 @@ data Expr =
     Mul { eLhs :: Expr, eRhs :: Expr } |
     Pow { eLhs :: Expr, eRhs :: Expr } deriving (Show)
 
-data ArithmeticError = ZeroDiv | NegativePow deriving (Show)
+data ArithmeticError = ZeroDiv | NegativePow deriving (Eq, Show)
 
 eval :: Expr -> Either ArithmeticError Int
 eval (Const x) = Right x

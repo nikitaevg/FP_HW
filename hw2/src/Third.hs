@@ -19,11 +19,11 @@ instance Applicative (Parser s) where
 
 instance Monad (Parser s) where
     return = pure
-    (Parser p) >>= f = Parser (\s -> join $ (uncurry runParser) <$> (first f <$> p s))
+    (Parser p) >>= f = Parser (\s -> join $ uncurry runParser <$> (first f <$> p s))
 
 instance Alternative (Parser s) where
     empty = Parser (const Nothing)
-    (Parser a) <|> (Parser b) = Parser (\s -> (a s) <|> (b s))
+    (Parser a) <|> (Parser b) = Parser (\s -> a s <|> b s)
 
 ok :: Parser a ()
 ok = Parser $ \s -> Just ((), s)
@@ -42,10 +42,10 @@ element :: Eq a => a -> Parser a a
 element c = satisfy (== c)
 
 parseDigit :: Parser Char Int
-parseDigit = digitToInt <$> (satisfy isDigit)
+parseDigit = digitToInt <$> satisfy isDigit
 
 stream :: Eq a => [a] -> Parser a [a]
-stream str = Parser $ \s -> if isPrefixOf str s
+stream str = Parser $ \s -> if str `isPrefixOf` s
                             then Just (str, snd $ splitAt (length str) s)
                             else Nothing
 
@@ -53,23 +53,25 @@ trim :: Parser Char String
 trim = many $ satisfy isSpace
 
 parseBrackets :: Parser Char String
-parseBrackets = trim *>
-                (concat <$> many ((\a l b -> a:l ++ [b])
-                            <$> element '(' <*> parseBrackets <*> element ')'))
-                <* trim
+parseBrackets = brackets <* eof where
+                brackets :: Parser Char String
+                brackets = trim *>
+                           (concat <$> many ((\a l b -> a:l ++ [b])
+                                   <$> element '(' <*> brackets <*> (element ')' <* trim)))
+                           <* trim
 
 parseNum :: Parser Char Int
-parseNum = trim *> ((((*) (-1)) <$ element '-') <|>
+parseNum = trim *> ((((-1) *) <$ element '-') <|>
            id <$ element '+' <|>
            id <$ ok) <*>
-           ((listToInt <$> some parseDigit)) <* trim
+           (listToInt <$> some parseDigit) <* trim
            where
              listToInt = foldl1 (\acc x -> acc * 10 + x)
 
 parseList :: Parser Char [[Int]]
-parseList = ((:) <$> listP <*> many (element ',' *> listP)) <|> (const []) <$> ok where
+parseList = ((:) <$> listP <*> many (element ',' *> listP)) <|> const [] <$> ok where
                 parseN :: Int -> Parser Char [Int]
-                parseN 1 = (return) <$> (parseNum)
+                parseN 1 = return <$> parseNum
                 parseN i = (:) <$> (parseNum <* element ',') <*> parseN (i - 1)
                 listP :: Parser Char [Int]
                 listP = (parseNum <* element ',') >>= parseN

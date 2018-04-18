@@ -11,7 +11,7 @@ stringSum str = sum <$> traverse getNum (words str)
                           then Just $ read word
                           else Nothing
 
-data Optional a = Optional (Maybe (Maybe a))
+newtype Optional a = Optional (Maybe (Maybe a)) deriving (Show)
 
 myId :: Optional a -> Optional b
 myId (Optional (Just Nothing)) = Optional $ Just Nothing
@@ -28,9 +28,37 @@ instance Applicative Optional where
     (<*>) _ x                          = myId x
 
 instance Monad Optional where
-    return x = Optional $ Just $ Just x
-    (>>=) (Optional (Just (Just x))) f = f x
-    (>>=) x _                          = myId x
+    return x = Optional $ Just $ Just x          -- (1)
+    (>>=) (Optional (Just (Just x))) f = f x     -- (2)
+    (>>=) x _                          = myId x  -- (3)
+{- 1 law: return a >>= f == f a
+ -        return a == Optional $ Just $ Just a   (1)
+ -        (Optional $ Just $ Just a) >>= f = f a (2)
+ -
+ - 2 law: m >>= return == m
+ - m = Optional $ Just $ Just a
+ - Optional $ Just $ Just a >>= return == return a (2)
+ - return a == Optional $ Just $ Just a            (1)
+ -
+ - m = Optional $ Just Nothing
+ - Optional (Just Nothing) >>= f =(3)= myId $ Optional (Just Nothing) == Optional (Just Nothing)
+ -
+ - m = Optional Nothing
+ - Optional Nothing >>= f =(3)= myId $ Optional Nothing == Optional Nothing
+ -
+ - 3 law: (m >>= f) >>= g = m >>= (\x -> f x >>= g)
+ - m = Optional $ Just $ Just a
+ - (Optional (Just (Just a)) >>= f) >>= g =(2)= f a >>= g
+ - Optional (Just (Just a)) >>= (\x -> f x >>= g) =(2)= (\x -> f x >>= g) a == f a >>= g
+ -
+ - m = Optional (Just Nothing)
+ - (Optional (Just Nothing) >>= f) >>= g =(3)= Optional (Just Nothing) >>= g =(3)= Optional $ Just Nothing
+ - Optional $ Just Nothing >>= (\x -> f x >>= g) =(3)= Optional (Just Nothing)
+ -
+ - m = Optional Nothing
+ - (Optional Nothing >>= f) >>= g =(3)= Optional Nothing >>= g =(3)= Optional Nothing
+ - Optional Nothing >>= (\x -> f x >>= g) =(3)= Optional Nothing
+ -}
 
 instance Foldable Optional where
     foldMap = optional mempty
@@ -42,7 +70,6 @@ instance Foldable Optional where
 instance Traversable Optional where
     traverse f (Optional (Just (Just x))) = (Optional . Just . Just) <$> f x
     traverse _ x                          = pure $ myId x
-
 
 data NonEmpty a = a :| [a]
 
@@ -58,11 +85,11 @@ instance Foldable NonEmpty where
     foldMap f (x :| xs) = f x `mappend` foldMap f xs
 
 instance Functor NonEmpty where
-    fmap f (x :| xs) = (f x) :| map f xs
+    fmap f (x :| xs) = f x :| map f xs
 
 instance Applicative NonEmpty where
     pure x = x :| []
-    (<*>) (f:|fs) (x:|xs) = fromList $ [g y | g <- (f:fs), y <- (x:xs)]
+    (<*>) (f:|fs) (x:|xs) = fromList [g y | g <- f:fs, y <- x:xs]
 
 instance Monad NonEmpty where
     return x = x :| []
