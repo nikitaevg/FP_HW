@@ -1,0 +1,4 @@
+> x
+mut y = x + 3 * (let x = 2 in x)
+y = y - 2
+< y
